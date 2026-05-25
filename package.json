@@ -1,0 +1,26 @@
+{
+  "name": "pipedrive-assistant-backend",
+  "version": "1.0.0",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "set NODE_OPTIONS=--use-system-ca&& tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node --use-system-ca dist/server.js"
+  },
+  "dependencies": {
+    "cors": "latest",
+    "dotenv": "latest",
+    "express": "latest",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@types/cors": "latest",
+    "@types/express": "latest",
+    "@types/node": "latest",
+    "tsx": "latest",
+    "typescript": "latest"
+  }
+}

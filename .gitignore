@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.env
+npm-debug.log*
+.dev-server.*.log
+.ngrok.*.log
+.localtunnel.*.log
+.npm-cache/
+.npm-cache-localtunnel/

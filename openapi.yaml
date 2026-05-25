@@ -1,0 +1,176 @@
+openapi: 3.1.0
+info:
+  title: Pipedrive Executive Assistant API
+  version: 1.0.0
+servers:
+  - url: https://api.tuempresa.com
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+security:
+  - bearerAuth: []
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      summary: Check backend health
+      security: []
+      responses:
+        "200":
+          description: Backend is running
+  /openapi.yaml:
+    get:
+      operationId: getOpenApiSpec
+      summary: Get this OpenAPI document
+      security: []
+      responses:
+        "200":
+          description: OpenAPI document
+  /me:
+    get:
+      operationId: getCurrentUser
+      summary: Get current Pipedrive user
+      responses:
+        "200":
+          description: Current user
+  /tasks/my:
+    get:
+      operationId: getMyTasks
+      summary: Get tasks assigned to current user
+      responses:
+        "200":
+          description: Assigned tasks
+  /tasks/overdue:
+    get:
+      operationId: getOverdueTasks
+      summary: Get overdue tasks
+      responses:
+        "200":
+          description: Overdue tasks
+  /tasks/today:
+    get:
+      operationId: getTodayTasks
+      summary: Get today's tasks
+      responses:
+        "200":
+          description: Today's tasks
+  /tasks/upcoming:
+    get:
+      operationId: getUpcomingTasks
+      summary: Get upcoming tasks
+      responses:
+        "200":
+          description: Upcoming tasks
+  /mentions/my:
+    get:
+      operationId: getMyMentions
+      summary: Get notes mentioning current user
+      responses:
+        "200":
+          description: User mentions
+  /deals/my:
+    get:
+      operationId: getMyDeals
+      summary: Get deals assigned to current user
+      responses:
+        "200":
+          description: Assigned deals
+  /dashboard:
+    get:
+      operationId: getDashboard
+      summary: Get executive dashboard summary
+      responses:
+        "200":
+          description: Dashboard summary
+  /activities:
+    post:
+      operationId: createActivity
+      summary: Create activity
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [subject]
+              properties:
+                subject: { type: string }
+                due_date: { type: string }
+                due_time: { type: string }
+                type: { type: string }
+                deal_id: { type: integer }
+                person_id: { type: integer }
+                org_id: { type: integer }
+                note: { type: string }
+      responses:
+        "200":
+          description: Created activity
+  /activities/{id}:
+    patch:
+      operationId: updateActivity
+      summary: Update activity
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Updated activity
+  /activities/{id}/complete:
+    post:
+      operationId: completeActivity
+      summary: Mark activity as completed
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Completed activity
+  /notes:
+    post:
+      operationId: createNote
+      summary: Create note
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties:
+                content: { type: string }
+                deal_id: { type: integer }
+                person_id: { type: integer }
+                org_id: { type: integer }
+      responses:
+        "200":
+          description: Created note
+  /deals/{id}:
+    patch:
+      operationId: updateDeal
+      summary: Update deal
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Updated deal
