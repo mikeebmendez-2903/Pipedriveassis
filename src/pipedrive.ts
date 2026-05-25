@@ -46,8 +46,31 @@ export async function getCurrentUser() {
   return request('/api/v1/users/me');
 }
 
+async function requestAllPages(path: string, query: Query = {}, maxPages = 10) {
+  let cursor: string | undefined;
+  const data: unknown[] = [];
+  let lastBody: any = { success: true, data: [] };
+
+  for (let page = 0; page < maxPages; page += 1) {
+    const body: any = await request(path, {}, { ...query, cursor });
+    lastBody = body;
+    data.push(...(body.data || []));
+
+    cursor = body.additional_data?.next_cursor || body.additional_data?.pagination?.next_cursor;
+    if (!cursor) break;
+  }
+
+  return { ...lastBody, data };
+}
+
 export async function getActivitiesByOwner(ownerId: string | number) {
-  return request('/api/v2/activities', {}, { owner_id: ownerId, limit: 100 });
+  return requestAllPages('/api/v2/activities', {
+    owner_id: ownerId,
+    done: false,
+    sort_by: 'due_date',
+    sort_direction: 'asc',
+    limit: 100
+  });
 }
 
 export async function getDealsByOwner(ownerId: string | number) {
