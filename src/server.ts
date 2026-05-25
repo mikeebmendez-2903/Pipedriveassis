@@ -72,6 +72,43 @@ function isUpcoming(activity: any) {
   return activity?.due_date && activity.due_date > todayISO() && !activity.done;
 }
 
+function simplifyActivity(activity: any) {
+  return {
+    id: activity.id,
+    subject: activity.subject,
+    type: activity.type,
+    due_date: activity.due_date,
+    due_time: activity.due_time,
+    done: activity.done,
+    priority: activity.priority,
+    deal_id: activity.deal_id,
+    person_id: activity.person_id,
+    org_id: activity.org_id,
+    owner_id: activity.owner_id
+  };
+}
+
+function simplifyDeal(deal: any) {
+  return {
+    id: deal.id,
+    title: deal.title,
+    value: deal.value,
+    currency: deal.currency,
+    status: deal.status,
+    stage_id: deal.stage_id,
+    pipeline_id: deal.pipeline_id,
+    person_id: deal.person_id,
+    org_id: deal.org_id,
+    owner_id: deal.owner_id,
+    update_time: deal.update_time,
+    expected_close_date: deal.expected_close_date
+  };
+}
+
+function compactActivityResponse(data: any, activities: any[]) {
+  return { ...data, data: activities.map(simplifyActivity) };
+}
+
 app.get('/health', (_req, res) => res.json({ ok: true }));
 
 app.get('/', (_req, res) => {
@@ -92,32 +129,38 @@ app.get('/me', async (_req, res, next) => {
 });
 
 app.get('/tasks/my', async (_req, res, next) => {
-  try { res.json(await getActivitiesByOwner(requireCurrentUserId())); } catch (e) { next(e); }
+  try {
+    const data: any = await getActivitiesByOwner(requireCurrentUserId());
+    res.json(compactActivityResponse(data, data.data || []));
+  } catch (e) { next(e); }
 });
 
 app.get('/tasks/overdue', async (_req, res, next) => {
   try {
     const data: any = await getActivitiesByOwner(requireCurrentUserId());
-    res.json({ ...data, data: (data.data || []).filter(isOverdue) });
+    res.json(compactActivityResponse(data, (data.data || []).filter(isOverdue)));
   } catch (e) { next(e); }
 });
 
 app.get('/tasks/today', async (_req, res, next) => {
   try {
     const data: any = await getActivitiesByOwner(requireCurrentUserId());
-    res.json({ ...data, data: (data.data || []).filter(isToday) });
+    res.json(compactActivityResponse(data, (data.data || []).filter(isToday)));
   } catch (e) { next(e); }
 });
 
 app.get('/tasks/upcoming', async (_req, res, next) => {
   try {
     const data: any = await getActivitiesByOwner(requireCurrentUserId());
-    res.json({ ...data, data: (data.data || []).filter(isUpcoming) });
+    res.json(compactActivityResponse(data, (data.data || []).filter(isUpcoming)));
   } catch (e) { next(e); }
 });
 
 app.get('/deals/my', async (_req, res, next) => {
-  try { res.json(await getDealsByOwner(requireCurrentUserId())); } catch (e) { next(e); }
+  try {
+    const data: any = await getDealsByOwner(requireCurrentUserId());
+    res.json({ ...data, data: (data.data || []).map(simplifyDeal) });
+  } catch (e) { next(e); }
 });
 
 app.get('/mentions/my', async (_req, res, next) => {
@@ -150,14 +193,20 @@ app.get('/dashboard', async (_req, res, next) => {
           upcoming: items.filter(isUpcoming).length,
           deals: (deals.data || []).length
         },
-        overdue: items.filter(isOverdue),
-        today: items.filter(isToday),
-        upcoming: items.filter(isUpcoming).slice(0, 20),
-        deals: deals.data || []
+        overdue: items.filter(isOverdue).map(simplifyActivity),
+        today: items.filter(isToday).map(simplifyActivity),
+        upcoming: items.filter(isUpcoming).slice(0, 20).map(simplifyActivity),
+        deals: (deals.data || []).slice(0, 50).map(simplifyDeal)
       }
     });
   } catch (e) { next(e); }
 });
+
+app.get('/tasks', (_req, res) => res.redirect(307, '/tasks/my'));
+app.get('/today', (_req, res) => res.redirect(307, '/tasks/today'));
+app.get('/overdue', (_req, res) => res.redirect(307, '/tasks/overdue'));
+app.get('/upcoming', (_req, res) => res.redirect(307, '/tasks/upcoming'));
+app.get('/deals', (_req, res) => res.redirect(307, '/deals/my'));
 
 app.post('/activities', async (req, res, next) => {
   try {

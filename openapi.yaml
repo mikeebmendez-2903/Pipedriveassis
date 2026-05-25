@@ -43,6 +43,13 @@ paths:
       responses:
         "200":
           description: Assigned tasks
+  /tasks:
+    get:
+      operationId: getTasks
+      summary: Alias for assigned tasks
+      responses:
+        "200":
+          description: Assigned tasks
   /tasks/overdue:
     get:
       operationId: getOverdueTasks
@@ -50,10 +57,24 @@ paths:
       responses:
         "200":
           description: Overdue tasks
+  /overdue:
+    get:
+      operationId: getOverdue
+      summary: Alias for overdue tasks
+      responses:
+        "200":
+          description: Overdue tasks
   /tasks/today:
     get:
       operationId: getTodayTasks
       summary: Get today's tasks
+      responses:
+        "200":
+          description: Today's tasks
+  /today:
+    get:
+      operationId: getToday
+      summary: Alias for today's tasks
       responses:
         "200":
           description: Today's tasks
@@ -75,6 +96,13 @@ paths:
     get:
       operationId: getMyDeals
       summary: Get deals assigned to current user
+      responses:
+        "200":
+          description: Assigned deals
+  /deals:
+    get:
+      operationId: getDeals
+      summary: Alias for assigned deals
       responses:
         "200":
           description: Assigned deals
