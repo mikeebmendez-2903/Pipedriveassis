@@ -34,7 +34,7 @@ class HttpError extends Error {
 }
 
 function requireAuth(req: express.Request, res: express.Response, next: express.NextFunction) {
-  if (['/', '/health', '/openapi.yaml'].includes(req.path)) return next();
+  if (['/', '/health', '/openapi.yaml', '/mobile'].includes(req.path)) return next();
   if (!SHARED_SECRET) return next();
   const bearerToken = req.header('Authorization');
   const apiKey = req.header('x-api-key');
@@ -109,6 +109,29 @@ function compactActivityResponse(data: any, activities: any[]) {
   return { ...data, data: activities.map(simplifyActivity) };
 }
 
+function escapeHtml(value: unknown) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function renderTaskList(title: string, activities: any[]) {
+  const rows = activities.length
+    ? activities.map((activity) => `
+        <li>
+          <strong>${escapeHtml(activity.subject || 'Sin titulo')}</strong>
+          <span>${escapeHtml(activity.due_date)}${activity.due_time ? ` · ${escapeHtml(activity.due_time)}` : ''}</span>
+          <small>${escapeHtml(activity.type || 'task')} · ID ${escapeHtml(activity.id)}</small>
+        </li>
+      `).join('')
+    : '<li class="empty">No hay actividades en esta categoria.</li>';
+
+  return `<section><h2>${escapeHtml(title)}</h2><ul>${rows}</ul></section>`;
+}
+
 app.get('/health', (_req, res) => res.json({ ok: true }));
 
 app.get('/', (_req, res) => {
@@ -122,6 +145,67 @@ app.get('/', (_req, res) => {
 
 app.get('/openapi.yaml', (_req, res) => {
   res.sendFile(path.resolve(process.cwd(), 'openapi.yaml'));
+});
+
+app.get('/mobile', async (req, res, next) => {
+  try {
+    if (SHARED_SECRET && req.query.key !== SHARED_SECRET) {
+      return res.status(401).send('Unauthorized');
+    }
+
+    const userId = requireCurrentUserId();
+    const activities: any = await getActivitiesByOwner(userId);
+    const deals: any = await getDealsByOwner(userId);
+    const items = activities.data || [];
+    const overdue = items.filter(isOverdue).map(simplifyActivity);
+    const today = items.filter(isToday).map(simplifyActivity);
+    const upcoming = items.filter(isUpcoming).slice(0, 10).map(simplifyActivity);
+
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-store');
+    res.send(`<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pipedrive Dashboard</title>
+  <style>
+    body { margin: 0; font-family: Arial, sans-serif; background: #f6f7f9; color: #15171a; }
+    header { position: sticky; top: 0; background: #101418; color: white; padding: 16px; }
+    h1 { margin: 0; font-size: 20px; }
+    main { padding: 14px; max-width: 760px; margin: 0 auto; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
+    .stat, section { background: white; border: 1px solid #e1e4e8; border-radius: 8px; }
+    .stat { padding: 14px; }
+    .stat strong { display: block; font-size: 24px; }
+    .stat span { color: #5f6873; font-size: 13px; }
+    section { margin-bottom: 14px; overflow: hidden; }
+    h2 { margin: 0; padding: 12px 14px; font-size: 16px; border-bottom: 1px solid #e1e4e8; }
+    ul { list-style: none; margin: 0; padding: 0; }
+    li { padding: 12px 14px; border-bottom: 1px solid #eef0f2; }
+    li:last-child { border-bottom: 0; }
+    li strong, li span, li small { display: block; }
+    li span { margin-top: 4px; color: #3f4750; }
+    li small { margin-top: 4px; color: #7a838d; }
+    .empty { color: #7a838d; }
+  </style>
+</head>
+<body>
+  <header><h1>Pipedrive Dashboard</h1></header>
+  <main>
+    <div class="grid">
+      <div class="stat"><strong>${items.length}</strong><span>Pendientes</span></div>
+      <div class="stat"><strong>${overdue.length}</strong><span>Vencidas</span></div>
+      <div class="stat"><strong>${today.length}</strong><span>Hoy</span></div>
+      <div class="stat"><strong>${(deals.data || []).length}</strong><span>Deals</span></div>
+    </div>
+    ${renderTaskList('Hoy', today)}
+    ${renderTaskList('Vencidas', overdue)}
+    ${renderTaskList('Proximas', upcoming)}
+  </main>
+</body>
+</html>`);
+  } catch (e) { next(e); }
 });
 
 app.get('/me', async (_req, res, next) => {
