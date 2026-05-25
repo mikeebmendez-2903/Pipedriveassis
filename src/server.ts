@@ -38,7 +38,8 @@ function requireAuth(req: express.Request, res: express.Response, next: express.
   if (!SHARED_SECRET) return next();
   const bearerToken = req.header('Authorization');
   const apiKey = req.header('x-api-key');
-  if (apiKey !== SHARED_SECRET && bearerToken !== `Bearer ${SHARED_SECRET}`) {
+  const queryKey = typeof req.query.key === 'string' ? req.query.key : undefined;
+  if (queryKey !== SHARED_SECRET && apiKey !== SHARED_SECRET && bearerToken !== `Bearer ${SHARED_SECRET}`) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   next();
