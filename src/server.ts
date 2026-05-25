@@ -36,8 +36,9 @@ class HttpError extends Error {
 function requireAuth(req: express.Request, res: express.Response, next: express.NextFunction) {
   if (['/', '/health', '/openapi.yaml'].includes(req.path)) return next();
   if (!SHARED_SECRET) return next();
-  const header = req.header('Authorization');
-  if (header !== `Bearer ${SHARED_SECRET}`) {
+  const bearerToken = req.header('Authorization');
+  const apiKey = req.header('x-api-key');
+  if (apiKey !== SHARED_SECRET && bearerToken !== `Bearer ${SHARED_SECRET}`) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   next();

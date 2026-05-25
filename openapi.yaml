@@ -3,14 +3,15 @@ info:
   title: Pipedrive Executive Assistant API
   version: 1.0.0
 servers:
-  - url: https://api.tuempresa.com
+  - url: https://pipedriveassis-production.up.railway.app
 components:
   securitySchemes:
-    bearerAuth:
-      type: http
-      scheme: bearer
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: x-api-key
 security:
-  - bearerAuth: []
+  - apiKeyAuth: []
 paths:
   /health:
     get:

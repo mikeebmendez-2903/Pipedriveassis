@@ -43,7 +43,7 @@ curl http://localhost:3000/health
 Con secreto:
 
 ```bash
-curl -H "Authorization: Bearer un_secreto_largo" http://localhost:3000/dashboard
+curl -H "x-api-key: un_secreto_largo" http://localhost:3000/dashboard
 ```
 
 ## Produccion
@@ -74,7 +74,7 @@ Despues del deploy, prueba:
 
 ```bash
 curl https://TU-SERVICIO.up.railway.app/health
-curl -H "Authorization: Bearer TU_API_SHARED_SECRET" https://TU-SERVICIO.up.railway.app/dashboard
+curl -H "x-api-key: TU_API_SHARED_SECRET" https://TU-SERVICIO.up.railway.app/dashboard
 ```
 
 ## Endpoints
@@ -99,5 +99,6 @@ curl -H "Authorization: Bearer TU_API_SHARED_SECRET" https://TU-SERVICIO.up.rail
 
 1. Despliega este backend en una URL HTTPS.
 2. Importa `openapi.yaml` en el editor de Actions del GPT.
-3. Configura autenticacion Bearer con el mismo valor de `API_SHARED_SECRET`.
-4. Cambia el server URL de `openapi.yaml` por la URL real de tu despliegue.
+3. Configura autenticacion como API Key.
+4. Usa `x-api-key` como nombre del header.
+5. Usa el valor de `API_SHARED_SECRET` como API key.
