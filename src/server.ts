@@ -41,8 +41,7 @@ function requireAuth(req: express.Request, res: express.Response, next: express.
   if (!SHARED_SECRET) return next();
   const bearerToken = req.header('Authorization');
   const apiKey = req.header('x-api-key');
-  const queryKey = typeof req.query.key === 'string' ? req.query.key : undefined;
-  if (queryKey !== SHARED_SECRET && apiKey !== SHARED_SECRET && bearerToken !== `Bearer ${SHARED_SECRET}`) {
+  if (apiKey !== SHARED_SECRET && bearerToken !== `Bearer ${SHARED_SECRET}`) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   next();
@@ -375,38 +374,6 @@ app.get('/voice/dashboard', async (_req, res, next) => {
       speech: buildDashboardSpeech(totals),
       data: { totals }
     });
-  } catch (e) { next(e); }
-});
-
-app.get('/siri/today', async (_req, res, next) => {
-  try {
-    const userId = requireCurrentUserId();
-    const data: any = await cached(`activities:${userId}`, () => getActivitiesByOwner(userId));
-    const items = data.data || [];
-    const today = items.filter(isToday).map(simplifyActivity);
-    const overdue = items.filter(isOverdue).map(simplifyActivity);
-    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    res.setHeader('Cache-Control', 'no-store');
-    res.send(buildTodaySpeech(today, overdue));
-  } catch (e) { next(e); }
-});
-
-app.get('/siri/dashboard', async (_req, res, next) => {
-  try {
-    const userId = requireCurrentUserId();
-    const activities: any = await cached(`activities:${userId}`, () => getActivitiesByOwner(userId));
-    const deals: any = await cached(`deals:${userId}`, () => getDealsByOwner(userId));
-    const items = activities.data || [];
-    const totals = {
-      tasks: items.length,
-      overdue: items.filter(isOverdue).length,
-      today: items.filter(isToday).length,
-      upcoming: items.filter(isUpcoming).length,
-      deals: (deals.data || []).length
-    };
-    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    res.setHeader('Cache-Control', 'no-store');
-    res.send(buildDashboardSpeech(totals));
   } catch (e) { next(e); }
 });
 

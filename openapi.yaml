@@ -127,20 +127,6 @@ paths:
       responses:
         "200":
           description: Voice-friendly dashboard summary
-  /siri/today:
-    get:
-      operationId: getSiriToday
-      summary: Get today's and overdue tasks as plain text for Siri Shortcuts
-      responses:
-        "200":
-          description: Plain text task summary
-  /siri/dashboard:
-    get:
-      operationId: getSiriDashboard
-      summary: Get dashboard summary as plain text for Siri Shortcuts
-      responses:
-        "200":
-          description: Plain text dashboard summary
   /activities:
     post:
       operationId: createActivity
