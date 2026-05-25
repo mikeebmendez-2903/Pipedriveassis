@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "set NODE_OPTIONS=--use-system-ca&& tsx watch src/server.ts",
     "build": "tsc",
-    "start": "node --use-system-ca dist/server.js"
+    "start": "node dist/server.js"
   },
   "dependencies": {
     "cors": "latest",
