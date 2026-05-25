@@ -113,6 +113,20 @@ paths:
       responses:
         "200":
           description: Dashboard summary
+  /voice/today:
+    get:
+      operationId: getVoiceToday
+      summary: Get a short spoken summary of today's and overdue tasks
+      responses:
+        "200":
+          description: Voice-friendly task summary
+  /voice/dashboard:
+    get:
+      operationId: getVoiceDashboard
+      summary: Get a short spoken executive dashboard summary
+      responses:
+        "200":
+          description: Voice-friendly dashboard summary
   /activities:
     post:
       operationId: createActivity

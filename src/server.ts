@@ -109,6 +109,36 @@ function compactActivityResponse(data: any, activities: any[]) {
   return { ...data, data: activities.map(simplifyActivity) };
 }
 
+function formatActivityForSpeech(activity: any) {
+  const time = activity.due_time ? ` a las ${activity.due_time}` : '';
+  return `${activity.subject || 'actividad sin titulo'}${time}`;
+}
+
+function buildTodaySpeech(today: any[], overdue: any[]) {
+  if (!today.length && !overdue.length) {
+    return 'No tienes actividades pendientes para hoy ni vencidas.';
+  }
+
+  const parts = [];
+  if (today.length) {
+    const topToday = today.slice(0, 5).map(formatActivityForSpeech).join('; ');
+    parts.push(`Tienes ${today.length} actividades para hoy: ${topToday}.`);
+  } else {
+    parts.push('No tienes actividades programadas para hoy.');
+  }
+
+  if (overdue.length) {
+    const topOverdue = overdue.slice(0, 5).map(formatActivityForSpeech).join('; ');
+    parts.push(`Tambien tienes ${overdue.length} vencidas: ${topOverdue}.`);
+  }
+
+  return parts.join(' ');
+}
+
+function buildDashboardSpeech(totals: { tasks: number; overdue: number; today: number; upcoming: number; deals: number }) {
+  return `Resumen ejecutivo: tienes ${totals.tasks} actividades pendientes, ${totals.overdue} vencidas, ${totals.today} para hoy, ${totals.upcoming} proximas y ${totals.deals} deals asignados.`;
+}
+
 function escapeHtml(value: unknown) {
   return String(value ?? '')
     .replace(/&/g, '&amp;')
@@ -291,6 +321,46 @@ app.get('/today', (_req, res) => res.redirect(307, '/tasks/today'));
 app.get('/overdue', (_req, res) => res.redirect(307, '/tasks/overdue'));
 app.get('/upcoming', (_req, res) => res.redirect(307, '/tasks/upcoming'));
 app.get('/deals', (_req, res) => res.redirect(307, '/deals/my'));
+
+app.get('/voice/today', async (_req, res, next) => {
+  try {
+    const data: any = await getActivitiesByOwner(requireCurrentUserId());
+    const items = data.data || [];
+    const today = items.filter(isToday).map(simplifyActivity);
+    const overdue = items.filter(isOverdue).map(simplifyActivity);
+    res.json({
+      success: true,
+      speech: buildTodaySpeech(today, overdue),
+      data: {
+        today_count: today.length,
+        overdue_count: overdue.length,
+        today: today.slice(0, 5),
+        overdue: overdue.slice(0, 5)
+      }
+    });
+  } catch (e) { next(e); }
+});
+
+app.get('/voice/dashboard', async (_req, res, next) => {
+  try {
+    const userId = requireCurrentUserId();
+    const activities: any = await getActivitiesByOwner(userId);
+    const deals: any = await getDealsByOwner(userId);
+    const items = activities.data || [];
+    const totals = {
+      tasks: items.length,
+      overdue: items.filter(isOverdue).length,
+      today: items.filter(isToday).length,
+      upcoming: items.filter(isUpcoming).length,
+      deals: (deals.data || []).length
+    };
+    res.json({
+      success: true,
+      speech: buildDashboardSpeech(totals),
+      data: { totals }
+    });
+  } catch (e) { next(e); }
+});
 
 app.post('/activities', async (req, res, next) => {
   try {
