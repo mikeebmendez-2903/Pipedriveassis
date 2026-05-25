@@ -23,6 +23,9 @@ const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || '0.0.0.0';
 const CURRENT_USER_ID = process.env.PIPEDRIVE_CURRENT_USER_ID;
 const SHARED_SECRET = process.env.API_SHARED_SECRET;
+const CACHE_TTL_MS = 60_000;
+
+const cache = new Map<string, { expiresAt: number; value: unknown }>();
 
 class HttpError extends Error {
   status: number;
@@ -52,6 +55,17 @@ function requireCurrentUserId() {
     throw new HttpError(500, 'Missing PIPEDRIVE_CURRENT_USER_ID');
   }
   return CURRENT_USER_ID;
+}
+
+async function cached<T>(key: string, load: () => Promise<T>, ttlMs = CACHE_TTL_MS): Promise<T> {
+  const item = cache.get(key);
+  if (item && item.expiresAt > Date.now()) {
+    return item.value as T;
+  }
+
+  const value = await load();
+  cache.set(key, { value, expiresAt: Date.now() + ttlMs });
+  return value;
 }
 
 function todayISO(date = new Date()) {
@@ -325,7 +339,8 @@ app.get('/deals', (_req, res) => res.redirect(307, '/deals/my'));
 
 app.get('/voice/today', async (_req, res, next) => {
   try {
-    const data: any = await getActivitiesByOwner(requireCurrentUserId());
+    const userId = requireCurrentUserId();
+    const data: any = await cached(`activities:${userId}`, () => getActivitiesByOwner(userId));
     const items = data.data || [];
     const today = items.filter(isToday).map(simplifyActivity);
     const overdue = items.filter(isOverdue).map(simplifyActivity);
@@ -345,8 +360,8 @@ app.get('/voice/today', async (_req, res, next) => {
 app.get('/voice/dashboard', async (_req, res, next) => {
   try {
     const userId = requireCurrentUserId();
-    const activities: any = await getActivitiesByOwner(userId);
-    const deals: any = await getDealsByOwner(userId);
+    const activities: any = await cached(`activities:${userId}`, () => getActivitiesByOwner(userId));
+    const deals: any = await cached(`deals:${userId}`, () => getDealsByOwner(userId));
     const items = activities.data || [];
     const totals = {
       tasks: items.length,
@@ -360,6 +375,38 @@ app.get('/voice/dashboard', async (_req, res, next) => {
       speech: buildDashboardSpeech(totals),
       data: { totals }
     });
+  } catch (e) { next(e); }
+});
+
+app.get('/siri/today', async (_req, res, next) => {
+  try {
+    const userId = requireCurrentUserId();
+    const data: any = await cached(`activities:${userId}`, () => getActivitiesByOwner(userId));
+    const items = data.data || [];
+    const today = items.filter(isToday).map(simplifyActivity);
+    const overdue = items.filter(isOverdue).map(simplifyActivity);
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-store');
+    res.send(buildTodaySpeech(today, overdue));
+  } catch (e) { next(e); }
+});
+
+app.get('/siri/dashboard', async (_req, res, next) => {
+  try {
+    const userId = requireCurrentUserId();
+    const activities: any = await cached(`activities:${userId}`, () => getActivitiesByOwner(userId));
+    const deals: any = await cached(`deals:${userId}`, () => getDealsByOwner(userId));
+    const items = activities.data || [];
+    const totals = {
+      tasks: items.length,
+      overdue: items.filter(isOverdue).length,
+      today: items.filter(isToday).length,
+      upcoming: items.filter(isUpcoming).length,
+      deals: (deals.data || []).length
+    };
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-store');
+    res.send(buildDashboardSpeech(totals));
   } catch (e) { next(e); }
 });
 
