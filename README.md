@@ -95,6 +95,36 @@ curl -H "x-api-key: TU_API_SHARED_SECRET" https://TU-SERVICIO.up.railway.app/das
 - `POST /notes`
 - `PATCH /deals/:id`
 
+## Notificaciones de tareas nuevas
+
+El backend puede revisar Pipedrive cada minuto y notificar cuando aparezca una nueva actividad pendiente asignada al usuario configurado.
+
+Activa en Railway:
+
+```env
+NOTIFICATIONS_ENABLED=true
+NOTIFICATIONS_POLL_SECONDS=60
+```
+
+Para email con Resend:
+
+```env
+RESEND_API_KEY=tu_resend_api_key
+NOTIFY_EMAIL_TO=tu@email.com
+NOTIFY_EMAIL_FROM=Pipedrive Assistant <onboarding@resend.dev>
+```
+
+Para WhatsApp con Twilio:
+
+```env
+TWILIO_ACCOUNT_SID=tu_account_sid
+TWILIO_AUTH_TOKEN=tu_auth_token
+TWILIO_WHATSAPP_FROM=whatsapp:+14155238886
+TWILIO_WHATSAPP_TO=whatsapp:+1TU_NUMERO
+```
+
+Al arrancar, el watcher marca las actividades existentes como vistas para evitar enviar notificaciones viejas. Solo notifica actividades nuevas detectadas despues de iniciar.
+
 ## Uso como GPT Action
 
 1. Despliega este backend en una URL HTTPS.

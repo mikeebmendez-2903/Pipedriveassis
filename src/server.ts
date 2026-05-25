@@ -14,6 +14,7 @@ import {
   createNote,
   updateDeal
 } from './pipedrive.js';
+import { startNotificationWatcher } from './notifications.js';
 
 const app = express();
 app.use(cors());
@@ -452,4 +453,5 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
 
 app.listen(PORT, HOST, () => {
   console.log(`Pipedrive assistant backend running on http://${HOST}:${PORT}`);
+  startNotificationWatcher();
 });
