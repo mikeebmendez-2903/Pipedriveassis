@@ -81,13 +81,21 @@ export async function getDealsByOwner(ownerId: string | number) {
   return request('/api/v2/deals', {}, { owner_id: ownerId, limit: 100 });
 }
 
+export async function getDeal(id: string | number) {
+  return request(`/api/v2/deals/${id}`);
+}
+
+export async function getPerson(id: string | number) {
+  return request(`/api/v1/persons/${id}`);
+}
+
+export async function getOrganization(id: string | number) {
+  return request(`/api/v1/organizations/${id}`);
+}
+
 export async function getNotes() {
   // Notes are currently documented under API v1.
   return request('/api/v1/notes', {}, { limit: 100 });
-}
-
-export async function getNotesByActivity(activityId: string | number) {
-  return request('/api/v1/notes', {}, { activity_id: activityId, limit: 100 });
 }
 
 export async function completeActivity(id: string | number) {

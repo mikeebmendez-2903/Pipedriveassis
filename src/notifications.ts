@@ -1,4 +1,4 @@
-import { getActivitiesByOwner, getActivity, getNotesByActivity } from './pipedrive.js';
+import { getActivitiesByOwner, getActivity, getDeal, getOrganization, getPerson } from './pipedrive.js';
 
 type Activity = {
   id?: number | string;
@@ -22,12 +22,11 @@ type Activity = {
   public_description?: string | null;
 };
 
-type Note = {
-  id?: number | string;
-  content?: string | null;
-  add_time?: string | null;
-  update_time?: string | null;
-  user_id?: number | string | null;
+type RelatedDetails = {
+  dealTitle?: string;
+  personName?: string;
+  personPhone?: string;
+  organizationName?: string;
 };
 
 const enabled = process.env.NOTIFICATIONS_ENABLED === 'true';
@@ -67,25 +66,23 @@ function field(label: string, value: unknown) {
   return `${label}: ${value}`;
 }
 
-function formatNotes(notes: Note[]) {
-  if (!notes.length) return 'Notas relacionadas: ninguna encontrada';
-
-  return [
-    `Notas relacionadas (${notes.length}):`,
-    ...notes.map((note, index) => {
-      const content = stripHtml(note.content);
-      return [
-        `Nota ${index + 1}${note.add_time ? ` (${note.add_time})` : ''}:`,
-        content || '(sin contenido)'
-      ].join('\n');
-    })
-  ].join('\n\n');
+function getFirstPhone(person: any) {
+  const phones = person?.phone;
+  if (Array.isArray(phones)) {
+    const primary = phones.find((phone) => phone?.primary && phone?.value);
+    return primary?.value || phones.find((phone) => phone?.value)?.value;
+  }
+  return typeof phones === 'string' ? phones : undefined;
 }
 
-function formatActivity(activity: Activity, notes: Note[] = []) {
+function formatActivity(activity: Activity, details: RelatedDetails = {}) {
   const due = [activity.due_date, activity.due_time].filter(Boolean).join(' ');
   return [
     `Nueva actividad asignada: ${activity.subject || 'Sin titulo'}`,
+    '',
+    field('Negocio', details.dealTitle || details.organizationName),
+    field('Dueno / contacto', details.personName),
+    field('Telefono del dueno / contacto', details.personPhone),
     '',
     field('Activity ID', activity.id),
     field('Tipo', activity.type),
@@ -103,37 +100,56 @@ function formatActivity(activity: Activity, notes: Note[] = []) {
     field('Creada', activity.add_time),
     field('Actualizada', activity.update_time),
     '',
-    activity.note ? `Nota de la actividad:\n${stripHtml(activity.note)}` : 'Nota de la actividad: ninguna',
-    activity.public_description ? `Descripcion publica:\n${stripHtml(activity.public_description)}` : undefined,
-    '',
-    formatNotes(notes)
+    activity.note ? `Nota de la tarea:\n${stripHtml(activity.note)}` : 'Nota de la tarea: ninguna',
+    activity.public_description ? `Descripcion publica:\n${stripHtml(activity.public_description)}` : undefined
   ].filter((line) => line !== undefined).join('\n');
 }
 
 async function getActivityDetails(activity: Activity) {
   let detailedActivity = activity;
-  let notes: Note[] = [];
+  const details: RelatedDetails = {};
 
-  if (!activity.id) return { activity: detailedActivity, notes };
-
-  try {
-    const activityResponse: any = await getActivity(activity.id);
-    detailedActivity = activityResponse.data || activity;
-  } catch (error) {
-    console.error(`Could not fetch activity detail for ${activity.id}`, error);
+  if (activity.id) {
+    try {
+      const activityResponse: any = await getActivity(activity.id);
+      detailedActivity = activityResponse.data || activity;
+    } catch (error) {
+      console.error(`Could not fetch activity detail for ${activity.id}`, error);
+    }
   }
 
-  try {
-    const notesResponse: any = await getNotesByActivity(activity.id);
-    notes = notesResponse.data || [];
-  } catch (error) {
-    console.error(`Could not fetch notes for activity ${activity.id}`, error);
+  if (detailedActivity.deal_id) {
+    try {
+      const dealResponse: any = await getDeal(detailedActivity.deal_id);
+      details.dealTitle = dealResponse.data?.title;
+    } catch (error) {
+      console.error(`Could not fetch deal ${detailedActivity.deal_id}`, error);
+    }
   }
 
-  return { activity: detailedActivity, notes };
+  if (detailedActivity.person_id) {
+    try {
+      const personResponse: any = await getPerson(detailedActivity.person_id);
+      details.personName = personResponse.data?.name;
+      details.personPhone = getFirstPhone(personResponse.data);
+    } catch (error) {
+      console.error(`Could not fetch person ${detailedActivity.person_id}`, error);
+    }
+  }
+
+  if (detailedActivity.org_id) {
+    try {
+      const organizationResponse: any = await getOrganization(detailedActivity.org_id);
+      details.organizationName = organizationResponse.data?.name;
+    } catch (error) {
+      console.error(`Could not fetch organization ${detailedActivity.org_id}`, error);
+    }
+  }
+
+  return { activity: detailedActivity, details };
 }
 
-async function sendEmail(activity: Activity, notes: Note[]) {
+async function sendEmail(activity: Activity, details: RelatedDetails) {
   if (!resendApiKey || !emailTo) return;
 
   const res = await fetch('https://api.resend.com/emails', {
@@ -146,7 +162,7 @@ async function sendEmail(activity: Activity, notes: Note[]) {
       from: emailFrom,
       to: emailTo,
       subject: `Nueva tarea Pipedrive: ${activity.subject || activity.id}`,
-      text: formatActivity(activity, notes)
+      text: formatActivity(activity, details)
     })
   });
 
@@ -156,13 +172,13 @@ async function sendEmail(activity: Activity, notes: Note[]) {
   }
 }
 
-async function sendWhatsapp(activity: Activity, notes: Note[]) {
+async function sendWhatsapp(activity: Activity, details: RelatedDetails) {
   if (!twilioAccountSid || !twilioAuthToken || !whatsappFrom || !whatsappTo) return;
 
   const body = new URLSearchParams({
     From: whatsappFrom,
     To: whatsappTo,
-    Body: formatActivity(activity, notes).slice(0, 1500)
+    Body: formatActivity(activity, details).slice(0, 1500)
   });
 
   const auth = Buffer.from(`${twilioAccountSid}:${twilioAuthToken}`).toString('base64');
@@ -184,8 +200,8 @@ async function sendWhatsapp(activity: Activity, notes: Note[]) {
 async function notify(activity: Activity) {
   const details = await getActivityDetails(activity);
   await Promise.all([
-    sendEmail(details.activity, details.notes),
-    sendWhatsapp(details.activity, details.notes)
+    sendEmail(details.activity, details.details),
+    sendWhatsapp(details.activity, details.details)
   ]);
 }
 
