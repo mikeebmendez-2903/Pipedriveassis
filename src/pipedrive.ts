@@ -73,6 +73,10 @@ export async function getActivitiesByOwner(ownerId: string | number) {
   });
 }
 
+export async function getActivity(id: string | number) {
+  return request(`/api/v2/activities/${id}`);
+}
+
 export async function getDealsByOwner(ownerId: string | number) {
   return request('/api/v2/deals', {}, { owner_id: ownerId, limit: 100 });
 }
@@ -80,6 +84,10 @@ export async function getDealsByOwner(ownerId: string | number) {
 export async function getNotes() {
   // Notes are currently documented under API v1.
   return request('/api/v1/notes', {}, { limit: 100 });
+}
+
+export async function getNotesByActivity(activityId: string | number) {
+  return request('/api/v1/notes', {}, { activity_id: activityId, limit: 100 });
 }
 
 export async function completeActivity(id: string | number) {

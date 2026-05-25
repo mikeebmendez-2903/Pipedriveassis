@@ -1,4 +1,4 @@
-import { getActivitiesByOwner } from './pipedrive.js';
+import { getActivitiesByOwner, getActivity, getNotesByActivity } from './pipedrive.js';
 
 type Activity = {
   id?: number | string;
@@ -9,6 +9,25 @@ type Activity = {
   deal_id?: number | string | null;
   person_id?: number | string | null;
   org_id?: number | string | null;
+  owner_id?: number | string | null;
+  creator_user_id?: number | string | null;
+  add_time?: string | null;
+  update_time?: string | null;
+  duration?: string | null;
+  done?: boolean;
+  busy?: boolean;
+  priority?: number | string | null;
+  note?: string | null;
+  location?: string | null;
+  public_description?: string | null;
+};
+
+type Note = {
+  id?: number | string;
+  content?: string | null;
+  add_time?: string | null;
+  update_time?: string | null;
+  user_id?: number | string | null;
 };
 
 const enabled = process.env.NOTIFICATIONS_ENABLED === 'true';
@@ -28,20 +47,93 @@ let initialized = false;
 let polling = false;
 const seenActivityIds = new Set<string>();
 
-function formatActivity(activity: Activity) {
+function stripHtml(value: unknown) {
+  return String(value || '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(div|p|li|ol|ul)>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&#39;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function field(label: string, value: unknown) {
+  if (value === undefined || value === null || value === '') return undefined;
+  return `${label}: ${value}`;
+}
+
+function formatNotes(notes: Note[]) {
+  if (!notes.length) return 'Notas relacionadas: ninguna encontrada';
+
+  return [
+    `Notas relacionadas (${notes.length}):`,
+    ...notes.map((note, index) => {
+      const content = stripHtml(note.content);
+      return [
+        `Nota ${index + 1}${note.add_time ? ` (${note.add_time})` : ''}:`,
+        content || '(sin contenido)'
+      ].join('\n');
+    })
+  ].join('\n\n');
+}
+
+function formatActivity(activity: Activity, notes: Note[] = []) {
   const due = [activity.due_date, activity.due_time].filter(Boolean).join(' ');
   return [
     `Nueva actividad asignada: ${activity.subject || 'Sin titulo'}`,
-    due ? `Fecha: ${due}` : undefined,
-    activity.type ? `Tipo: ${activity.type}` : undefined,
-    activity.deal_id ? `Deal ID: ${activity.deal_id}` : undefined,
-    activity.person_id ? `Person ID: ${activity.person_id}` : undefined,
-    activity.org_id ? `Org ID: ${activity.org_id}` : undefined,
-    activity.id ? `Activity ID: ${activity.id}` : undefined
-  ].filter(Boolean).join('\n');
+    '',
+    field('Activity ID', activity.id),
+    field('Tipo', activity.type),
+    field('Fecha', due),
+    field('Duracion', activity.duration),
+    field('Completada', activity.done),
+    field('Ocupado', activity.busy),
+    field('Prioridad', activity.priority),
+    field('Owner ID', activity.owner_id),
+    field('Creator User ID', activity.creator_user_id),
+    field('Deal ID', activity.deal_id),
+    field('Person ID', activity.person_id),
+    field('Org ID', activity.org_id),
+    field('Ubicacion', activity.location),
+    field('Creada', activity.add_time),
+    field('Actualizada', activity.update_time),
+    '',
+    activity.note ? `Nota de la actividad:\n${stripHtml(activity.note)}` : 'Nota de la actividad: ninguna',
+    activity.public_description ? `Descripcion publica:\n${stripHtml(activity.public_description)}` : undefined,
+    '',
+    formatNotes(notes)
+  ].filter((line) => line !== undefined).join('\n');
 }
 
-async function sendEmail(activity: Activity) {
+async function getActivityDetails(activity: Activity) {
+  let detailedActivity = activity;
+  let notes: Note[] = [];
+
+  if (!activity.id) return { activity: detailedActivity, notes };
+
+  try {
+    const activityResponse: any = await getActivity(activity.id);
+    detailedActivity = activityResponse.data || activity;
+  } catch (error) {
+    console.error(`Could not fetch activity detail for ${activity.id}`, error);
+  }
+
+  try {
+    const notesResponse: any = await getNotesByActivity(activity.id);
+    notes = notesResponse.data || [];
+  } catch (error) {
+    console.error(`Could not fetch notes for activity ${activity.id}`, error);
+  }
+
+  return { activity: detailedActivity, notes };
+}
+
+async function sendEmail(activity: Activity, notes: Note[]) {
   if (!resendApiKey || !emailTo) return;
 
   const res = await fetch('https://api.resend.com/emails', {
@@ -54,7 +146,7 @@ async function sendEmail(activity: Activity) {
       from: emailFrom,
       to: emailTo,
       subject: `Nueva tarea Pipedrive: ${activity.subject || activity.id}`,
-      text: formatActivity(activity)
+      text: formatActivity(activity, notes)
     })
   });
 
@@ -64,13 +156,13 @@ async function sendEmail(activity: Activity) {
   }
 }
 
-async function sendWhatsapp(activity: Activity) {
+async function sendWhatsapp(activity: Activity, notes: Note[]) {
   if (!twilioAccountSid || !twilioAuthToken || !whatsappFrom || !whatsappTo) return;
 
   const body = new URLSearchParams({
     From: whatsappFrom,
     To: whatsappTo,
-    Body: formatActivity(activity)
+    Body: formatActivity(activity, notes).slice(0, 1500)
   });
 
   const auth = Buffer.from(`${twilioAccountSid}:${twilioAuthToken}`).toString('base64');
@@ -90,9 +182,10 @@ async function sendWhatsapp(activity: Activity) {
 }
 
 async function notify(activity: Activity) {
+  const details = await getActivityDetails(activity);
   await Promise.all([
-    sendEmail(activity),
-    sendWhatsapp(activity)
+    sendEmail(details.activity, details.notes),
+    sendWhatsapp(details.activity, details.notes)
   ]);
 }
 
